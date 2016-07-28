@@ -1,6 +1,7 @@
 (ns thdr.kfk.consumer
   "A thin wrapper around Kafka Java Consumer (0.9-0.10)"
-  (:require [schema.core :as s]
+  (:require [thdr.kfk.util :as u]
+            [schema.core :as s]
             [clojure.string :as str])
   (:import  [org.apache.kafka.clients.consumer
              KafkaConsumer
@@ -9,24 +10,10 @@
             [org.apache.kafka.common.serialization Deserializer]
             [java.util Properties]))
 
-(s/defschema ConsumerConfig
-  {s/Keyword s/Any})
-
 (s/defschema ConsumerArgs
   {(s/optional-key :key-deserializer)   Deserializer
    (s/optional-key :value-deserializer) Deserializer
-   :props ConsumerConfig})
-
-(s/defn ^:private make-props :- Properties
-  [props-map :- ConsumerConfig]
-  (let [props (Properties.)]
-    (doseq [[k v] props-map]
-      (.setProperty props
-                    (name k)
-                    (if (coll? v)
-                      (str/join "," v)
-                      (str v))))
-    props))
+   :props u/Config})
 
 (defn- ConsumerRecord->map [^ConsumerRecord record]
   {:key       (.key record)
@@ -70,12 +57,10 @@
              (lazy-seq (stream! consumer
                                 (assoc opts :commit-prev true))))))
 
-(s/defn kafka-consumer :- KafkaConsumer
+(defn kafka-consumer
   "Makes an instance of KafkaConsumer
    TODO: rebalance listener and stuff"
-  [& args :- [ConsumerArgs]]
-  (let [{:keys [key-deserializer value-deserializer props]
-         :or {key-deserializer nil
-              value-deserializer nil}} args
-        props (make-props props)]
-    (KafkaConsumer. props key-deserializer value-deserializer)))
+  [& {:keys [key-deserializer value-deserializer props] :as args}]
+  {:pre (s/validate ConsumerArgs args)}
+  (-> (u/make-props props)
+      (KafkaConsumer. key-deserializer value-deserializer)))
