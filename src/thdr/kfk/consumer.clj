@@ -1,27 +1,17 @@
 (ns thdr.kfk.consumer
   "A thin wrapper around Kafka Java Consumer (0.9-0.10)"
-  (:require [thdr.kfk.util :as u]
+  (:require [thdr.kfk
+             [util :as u]
+             [types :refer [to-map]]]
             [schema.core :as s]
             [clojure.string :as str])
-  (:import  [org.apache.kafka.clients.consumer
-             KafkaConsumer
-             ConsumerRecord
-             ConsumerRecords]
-            [org.apache.kafka.common.serialization Deserializer]
-            [java.util Properties]))
+  (:import  [org.apache.kafka.clients.consumer KafkaConsumer Consumer]
+            [org.apache.kafka.common.serialization Deserializer]))
 
 (s/defschema ConsumerArgs
   {(s/optional-key :key-deserializer)   Deserializer
    (s/optional-key :value-deserializer) Deserializer
    :props u/Config})
-
-(defn- ConsumerRecord->map [^ConsumerRecord record]
-  {:key       (.key record)
-   :offset    (.offset record)
-   :partition (.partition record)
-   :timestamp (.timestamp record) ;; TODO: Check if it works
-   :topic     (.topic record)     ;; ..... with 0.9 since
-   :value     (.value record)})   ;; ..... timestamps were added in 0.10.
 
 (defn subscribe!
   "Subscribe to topics"
@@ -33,18 +23,18 @@
   "Makes a stream of ConsumerRecord bathces
    returned from each poll. Doesn't commit offsets,
    it should be done manually."
-  [^KafkaConsumer consumer
+  [^Consumer consumer
    ^int poll-timeout]
   (->> (iterator-seq (.iterator (.poll consumer poll-timeout)))
-       (map ConsumerRecord->map)))
+       (map to-map)))
 
 (defn stream!
   "Makes a flat stream of Kafka messages.
    Commits before each poll when `:commit-before-next-poll`
    set to `true` (default is `true`)."
-  ([^KafkaConsumer consumer]
+  ([^Consumer consumer]
    (stream consumer {}))
-  ([^KafkaConsumer consumer
+  ([^Consumer consumer
     {:keys [poll-timeout commit-prev commit-before-next-poll]
      :or {poll-timeout 3000
           commit-prev false

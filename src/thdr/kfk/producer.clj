@@ -1,13 +1,10 @@
 (ns thdr.kfk.producer
   "A thin wrapper around KafkaProducer"
-  (:require [thdr.kfk.util :as u]
+  (:require [thdr.kfk
+             [util :as u]
+             [types :refer [to-map]]]
             [schema.core :as s])
-  (:import [org.apache.kafka.clients.producer KafkaProducer
-                                              Producer
-                                              ProducerRecord
-                                              Callback
-                                              RecordMetadata]
-           [org.apache.kafka.common PartitionInfo Node]
+  (:import [org.apache.kafka.clients.producer KafkaProducer Producer Callback]
            [org.apache.kafka.common.serialization Serializer StringSerializer]))
 
 (s/defschema ProducerArgs
@@ -29,31 +26,6 @@
    (let [key (or key (and key-fn (key-fn record)))
          ts  (or timestamp (and timestamp-fn (timestamp-fn record)))]
      (ProducerRecord. topic partition ts key record))))
-
-(defn- Node->map
-  [^Node node]
-  {:id (.idString node)
-   :host (.host node)
-   :port (.port node)
-   :rack (.rack node)})
-
-(defn- PartitionInfo->map
-  [^PartitionInfo info]
-  {:topic (.topic info)
-   :partition (.partition info)
-   :leader (-> (.leader info) Node->map)
-   :replicas (->> (.replicas info) (mapv Node->map))
-   :in-sync-replicas (->> (.inSyncReplicas info) (mapv Node->map))})
-
-(defn- RecordMetadata->map
-  [^RecordMetadata rm]
-  {:checksum (.checksum rm)
-   :offset (.offset rm)
-   :partition (.partition rm)
-   :serialized-key-size (.serializedKeySize rm)
-   :serialized-value-size (.serializedValueSize rm)
-   :timestamp (.timestamp rm)
-   :topic (.topic rm)})
 
 (defn- make-send-callback [f]
   (reify Callback
