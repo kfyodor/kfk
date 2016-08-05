@@ -12,26 +12,50 @@
    (s/optional-key :value-serializer) Serializer
    :props u/PropsMap})
 
-(defn- map->ProducerRecord
-  ([^String topic record]
-   (map->ProducerRecord topic {} record))
-  ([^String topic
-    {:keys [key
-            key-fn
+(defn- make-producer-record
+  ([{:keys [topic
+            key
+            value
             partition
-            timestamp
-            timestamp-fn]
-     :as opts}
-    record]
-   (let [key (or key (and key-fn (key-fn record)))
-         ts  (or timestamp (and timestamp-fn (timestamp-fn record)))]
-     (ProducerRecord. topic partition ts key record))))
+            timestamp]
+     :as record}]
+   {:pre [(and (not (nil? value)) (not (nil? topic)))]}
+   (ProducerRecord. topic partition timestamp key value)))
 
 (defn- make-send-callback [f]
   (reify Callback
     (onCompletion [_ metadata ex]
       (-> (RecordMetadata->map metadata)
           (f ex)))))
+
+(defn send!
+  "Sends a record to Kafka.
+
+   Valid record keys are (* is required):
+   `:topic`*        - a Kafka topic this record will be sent to
+   `:key`          - record key
+   `:partition`    - partition number
+   `:timestamp`    - record timestamp
+   `:callback`     - callback (a function of record metadata map and exception)"
+  ([^Producer producer record]
+   (send! producer record nil))
+  ([^Producer producer record callback]
+   (let [record   (make-producer-record record)
+         callback (and callback (make-send-callback callback))]
+     (.send producer record callback))))
+
+(defn flush!
+  [^Producer producer]
+  (.flush producer))
+
+(defn close!
+  [^Producer producer]
+  (.close producer))
+
+(defn partitions-for
+  [^Producer producer ^String topic]
+  (mapv PartitionInfo->map
+        (.partitionsFor producer topic)))
 
 (defn kafka-producer
   "Makes an instance of KafkaProducer
@@ -53,34 +77,3 @@
   {:pre [(s/validate ProducerArgs args)]}
   (-> (u/make-props props)
       (KafkaProducer. key-serializer value-serializer)))
-
-(defn send!
-  "Sends a record to Kafka.
-
-   Valid options are (all are optional):
-   `:key`          - record key
-   `:key-fn`       - function which extracts key from record
-   `:partition`    - partition number
-   `:timestamp`    - record timestamp
-   `:timestamp-fn` - function which extracts timestamp from record
-   `:callback`     - callback (a function of record metadata map and exception)"
-  ([^Producer producer ^String topic record]
-   (send! producer topic record {}))
-  ([^Producer producer ^String topic record {:keys [callback] :as opts}]
-   (let [opts     (dissoc opts :callback)
-         record   (map->ProducerRecord topic opts record)
-         callback (and callback (make-send-callback callback))]
-     (.send producer record callback))))
-
-(defn flush!
-  [^Producer producer]
-  (.flush producer))
-
-(defn close!
-  [^Producer producer]
-  (.close producer))
-
-(defn partitions-for
-  [^Producer producer ^String topic]
-  (mapv PartitionInfo->map
-        (.partitionsFor producer topic)))

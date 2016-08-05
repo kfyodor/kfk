@@ -66,5 +66,4 @@
      :timestamp (.timestamp this) ;; TODO: Check if it works
      :topic     (.topic this)     ;; ..... with 0.9 since
      :value     (.value this)})   ;; ..... timestamps were added in 0.10.
-
   )
