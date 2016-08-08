@@ -4,7 +4,11 @@
              [util :as u]
              [types :refer [to-map]]]
             [schema.core :as s])
-  (:import [org.apache.kafka.clients.producer KafkaProducer Producer Callback]
+  (:import [org.apache.kafka.clients.producer
+            KafkaProducer
+            Producer
+            Callback
+            ProducerRecord]
            [org.apache.kafka.common.serialization Serializer StringSerializer]))
 
 (s/defschema ProducerArgs
@@ -17,16 +21,17 @@
             key
             value
             partition
-            timestamp]
+            ^long timestamp]
      :as record}]
    {:pre [(and (not (nil? value)) (not (nil? topic)))]}
-   (ProducerRecord. topic partition timestamp key value)))
+   (ProducerRecord. topic (int partition) timestamp key value)))
 
 (defn- make-send-callback [f]
   (reify Callback
     (onCompletion [_ metadata ex]
-      (-> (RecordMetadata->map metadata)
-          (f ex)))))
+      (if ex
+        (f nil ex)
+        (f (to-map metadata) nil)))))
 
 (defn send!
   "Sends a record to Kafka.
@@ -35,8 +40,7 @@
    `:topic`*        - a Kafka topic this record will be sent to
    `:key`          - record key
    `:partition`    - partition number
-   `:timestamp`    - record timestamp
-   `:callback`     - callback (a function of record metadata map and exception)"
+   `:timestamp`    - record timestamp"
   ([^Producer producer record]
    (send! producer record nil))
   ([^Producer producer record callback]
@@ -54,8 +58,7 @@
 
 (defn partitions-for
   [^Producer producer ^String topic]
-  (mapv PartitionInfo->map
-        (.partitionsFor producer topic)))
+  (mapv to-map (.partitionsFor producer topic)))
 
 (defn kafka-producer
   "Makes an instance of KafkaProducer

@@ -5,19 +5,23 @@
              [types :refer [to-map]]]
             [schema.core :as s]
             [clojure.string :as str])
-  (:import  [org.apache.kafka.clients.consumer KafkaConsumer Consumer]
-            [org.apache.kafka.common.serialization Deserializer]))
+  (:import [org.apache.kafka.common TopicPartition]
+           [org.apache.kafka.clients.consumer
+            KafkaConsumer
+            Consumer
+            ConsumerRebalanceListener]
+           [org.apache.kafka.common.serialization Deserializer]))
 
 (s/defschema ConsumerArgs
   {(s/optional-key :key-deserializer)   Deserializer
    (s/optional-key :value-deserializer) Deserializer
-   :props u/Config})
+   :props u/PropsMap})
 
 (s/defschema TopicPartitions
-  {(s/or s/Str s/Keyword) [s/Int]})
+  {(s/either s/Str s/Keyword) [s/Int]})
 
 (defn- make-TopicPartition
-  [^String topic ^int partition]
+  [^String topic partition]
   (TopicPartition. topic partition))
 
 (defn- make-TopicPartitions
@@ -59,7 +63,7 @@
 (defn commited
   ([^Consumer consumer
     ^String topic
-    ^int partition]
+    partition]
    (.commited consumer (make-TopicPartition topic partition))))
 
 (defn list-topics
@@ -88,7 +92,7 @@
 (defn position
   [^Consumer consumer
    ^String topic
-   ^int partition]
+   partition]
   (.position consumer (make-TopicPartition topic partition)))
 
 (defn resume!
@@ -99,7 +103,7 @@
 (defn seek!
   [^Consumer consumer
    ^String topic
-   ^int partition
+   partition
    ^long offset]
   (.seek consumer
          (make-TopicPartition topic partition)
@@ -117,11 +121,11 @@
 
 (defn make-rebalance-listener
   [on-assigned-fn on-revoked-fn]
-  (reify ConsomerRebalanceListener
+  (reify ConsumerRebalanceListener
     (onPartitionsAssigned [this topic-partitions]
       (-> (map to-map topic-partitions)
           (on-assigned-fn)))
-    (onPartitionRevoked [this topic-partitions]
+    (onPartitionsRevoked [this topic-partitions]
       (-> (map to-map topic-partitions)
           (on-revoked-fn)))))
 
@@ -150,7 +154,7 @@
    returned from each poll. Doesn't commit offsets,
    it should be done manually."
   [^Consumer consumer
-   ^int poll-timeout]
+   poll-timeout]
   (->> (iterator-seq (.iterator (.poll consumer poll-timeout)))
        (map to-map)))
 
@@ -159,7 +163,7 @@
    Commits before each poll when `:commit-before-next-poll`
    set to `true` (default is `true`)."
   ([^Consumer consumer]
-   (stream consumer {}))
+   (stream! consumer {}))
   ([^Consumer consumer
     {:keys [poll-timeout commit-prev commit-before-next-poll]
      :or {poll-timeout 3000

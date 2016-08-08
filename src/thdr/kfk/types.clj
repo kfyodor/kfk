@@ -1,8 +1,6 @@
 (ns thdr.kfk.types
-  (:import [org.apache.kafka.clients.common
+  (:import [org.apache.kafka.common
             TopicPartition
-            OffsetAndMetadata
-            RecordMetadata
             PartitionInfo
             Node]
 
@@ -11,6 +9,7 @@
             ProducerRecord]
 
            [org.apache.kafka.clients.consumer
+            OffsetAndMetadata
             ConsumerRecord
             ConsumerRecords]))
 
@@ -20,8 +19,8 @@
 (extend-protocol KafkaObjectToMap
   TopicPartition
   (to-map [this]
-    {:topic (.topic tp)
-     :partition (.partition tp)})
+    {:topic (.topic this)
+     :partition (.partition this)})
 
   OffsetAndMetadata
   (to-map [this]
@@ -33,13 +32,13 @@
      :timestamp (.timestamp this)
      :topic (.topic this)})
 
-  ParititionInfo
+  PartitionInfo
   (to-map [this]
     {:topic (.topic this)
      :partition (.partition this)
      :leader (to-map (.leader this))
      :replicas (mapv to-map (.replicas this))
-     :in-sync-replicas (mapv to-map (.inSyncReplicas info))})
+     :in-sync-replicas (mapv to-map (.inSyncReplicas this))})
 
   Node
   (to-map [this]
