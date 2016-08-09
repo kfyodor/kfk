@@ -24,13 +24,8 @@
 
   OffsetAndMetadata
   (to-map [this]
-    {:checksum (.checksum this)
-     :offset (.offset this)
-     :partition (.partition this)
-     :serialized-key-size (.serializedKeySize this)
-     :serialized-value-size (.serializedValueSize this)
-     :timestamp (.timestamp this)
-     :topic (.topic this)})
+    {:offset (.offset this)
+     :metadata (.metadata this)})
 
   PartitionInfo
   (to-map [this]

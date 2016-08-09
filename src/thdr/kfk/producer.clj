@@ -11,7 +11,7 @@
             ProducerRecord]
            [org.apache.kafka.common.serialization Serializer StringSerializer]))
 
-(s/defschema ProducerArgs
+(s/defschema ProducerArgsSchema
   {(s/optional-key :key-serializer) Serializer
    (s/optional-key :value-serializer) Serializer
    :props u/PropsMap})
@@ -77,6 +77,6 @@
       :or {key-serializer nil
            value-serializer nil}
       :as args}]
-  {:pre [(s/validate ProducerArgs args)]}
+  {:pre [(s/validate ProducerArgsSchema args)]}
   (-> (u/make-props props)
       (KafkaProducer. key-serializer value-serializer)))

@@ -9,16 +9,31 @@
            [org.apache.kafka.clients.consumer
             KafkaConsumer
             Consumer
-            ConsumerRebalanceListener]
+            ConsumerRebalanceListener
+            OffsetAndMetadata]
+           [org.apache.kafka.clients.consumer.internals
+            NoOpConsumerRebalanceListener]
            [org.apache.kafka.common.serialization Deserializer]))
 
-(s/defschema ConsumerArgs
+;; TODO: commitAsync and docstrings
+
+(s/defschema ConsumerArgsSchema
   {(s/optional-key :key-deserializer)   Deserializer
    (s/optional-key :value-deserializer) Deserializer
    :props u/PropsMap})
 
-(s/defschema TopicPartitions
-  {(s/either s/Str s/Keyword) [s/Int]})
+(s/defschema OffsetsSchema
+  [{:topic s/Str
+    :partition s/Int
+    :offset s/Int
+    (s/optional-key :metadata) s/Str}])
+
+(s/defschema TopicPartitionSchema
+  {:topic s/Str
+   :partition s/Int})
+
+(s/defschema TopicPartitionsSchema
+  [TopicPartitionSchema])
 
 (defn- make-TopicPartition
   [^String topic partition]
@@ -26,30 +41,37 @@
 
 (defn- make-TopicPartitions
   [topic-partitions]
-  {:pre (s/validate TopicPartitions topic-partitions)}
-  (mapcat (fn [[topic partitions]]
-            (map (partial make-TopicPartition (name topic))
-                 partitions))
-          topic-partitions))
+  {:pre (s/validate TopicPartitionsSchema topic-partitions)}
+  (->> topic-partitions
+       (map (fn [{:keys [topic partition]}]
+              (make-TopicPartition topic partition)))))
+
+(defn- make-Offsets
+  [offsets]
+  (->> offsets
+       (map (fn [{:keys [topic partition offset metadata]
+                 :or {metadata ""}}]
+              [(make-TopicPartition topic partition)
+               (OffsetAndMetadata. offset metadata)]))
+       (into {})))
+
+;;;;;;;;;; PUBLIC API ;;;;;;;;;;
 
 (defn assign!
-  "Manually assign a list of partitions to consumer
+  "Manually assign a list of topics and
+   partitions to consumer.
 
-   `topic-partition` should be a map with topics as keys
-   and vectors of partition numbers as values
-   (?????? or maybe just a collection of maps {:topic :partition} ???????)"
+   `topic-partitions` should be a collection
+   of maps with keys `:topic` and `:partition`"
   [^Consumer consumer topic-partitions]
-  {:pre (s/validate TopicPartitions topic-partitions)}
   (.assign consumer
            (make-TopicPartitions topic-partitions)))
 
 (defn assignment
+  "Get current assigned topics
+   and partitions for consumer."
   [^Consumer consumer]
   (map to-map (.assignment consumer)))
-
-(defn partition-info
-  [^Consumer consumer ^String topic]
-  (map to-map (.partitionInfo consumer topic)))
 
 (defn commit-async!
   ([^Consumer consumer])
@@ -57,23 +79,35 @@
   ([^Consumer consumer offsets callback-fn]))
 
 (defn commit-sync!
-  ([^Consumer consumer])
-  ([^Consumer consumer offsets]))
+  "Synchronously commits offsets for all topics and
+   partitions fetched via poll! if no specific
+   `offsets` are specified.
 
-(defn commited
-  ([^Consumer consumer
-    ^String topic
-    partition]
-   (.commited consumer (make-TopicPartition topic partition))))
+   `offsets` must be a collection of maps with keys:
+   `:topic`, `:partition`, `:offset` and optional
+   `:metadata` key."
+  ([^Consumer consumer]
+   (.commitSync consumer))
+  ([^Consumer consumer offsets]
+   (.commitSync consumer (make-Offsets offsets))))
+
+(defn committed
+  "Get latest committed offsets for
+   specified topic and partition."
+  ([^Consumer consumer ^String topic partition]
+   (to-map
+    (.committed consumer (make-TopicPartition topic partition)))))
 
 (defn list-topics
+  "List topics consumer subscribed to."
   [^Consumer consumer]
   (into {} (map (fn [[topic p-infos]]
                   [topic (mapv to-map p-infos)])
                 (.listTopics consumer))))
 
 (defn metrics
-  [^Consumer consumer])
+  [^Consumer consumer]
+  :TODO)
 
 (defn partitions-for
   [^Consumer consumer ^String topic]
@@ -90,9 +124,7 @@
   (mapv to-map (.paused consumer)))
 
 (defn position
-  [^Consumer consumer
-   ^String topic
-   partition]
+  [^Consumer consumer ^String topic partition]
   (.position consumer (make-TopicPartition topic partition)))
 
 (defn resume!
@@ -101,10 +133,7 @@
            (make-TopicPartitions topic-partitions)))
 
 (defn seek!
-  [^Consumer consumer
-   ^String topic
-   partition
-   ^long offset]
+  [^Consumer consumer ^String topic partition offset]
   (.seek consumer
          (make-TopicPartition topic partition)
          offset))
@@ -132,14 +161,19 @@
 (defn subscribe!
   "Subscribe to topics"
   ([^Consumer consumer topics]
-   (subscribe! consumer topics nil))
-  ([^Consumer consumer
-    topics
-    on-assigned-fn
-    on-revoked-fn
-    ;; ..... TODO
-    ;(.subscribe consumer topics rebalance-listener-fn)
-    ]))
+   (.subscribe consumer topics (NoOpConsumerRebalanceListener.)))
+  ([^Consumer consumer topics ^ConsumerRebalanceListener listener]
+   (.subscribe consumer topics listener))
+  ([^Consumer consumer topics on-assigned-fn on-revoked-fn]
+   (.subscribe consumer
+               topics
+               (make-rebalance-listener on-assigned-fn
+                                        on-revoked-fn))))
+
+(defn subscription
+  "Get set of topics consumer subscribed to."
+  [^Consumer consumer]
+  (into #{} (.subscription consumer)))
 
 (defn unsubscribe!
   [^Consumer consumer]
@@ -153,22 +187,21 @@
   "Makes a stream of ConsumerRecord bathces
    returned from each poll. Doesn't commit offsets,
    it should be done manually."
-  [^Consumer consumer
-   poll-timeout]
+  [^Consumer consumer poll-timeout]
   (->> (iterator-seq (.iterator (.poll consumer poll-timeout)))
        (map to-map)))
 
 (defn stream!
   "Makes a flat stream of Kafka messages.
    Commits before each poll when `:commit-before-next-poll`
-   set to `true` (default is `true`)."
+   set to `true` (default is `false`)."
   ([^Consumer consumer]
    (stream! consumer {}))
   ([^Consumer consumer
     {:keys [poll-timeout commit-prev commit-before-next-poll]
      :or {poll-timeout 3000
           commit-prev false
-          commit-before-next-poll true}
+          commit-before-next-poll false}
      :as opts}]
    (when (and commit-before-next-poll
               commit-prev)
@@ -182,6 +215,6 @@
   "Makes an instance of KafkaConsumer
    TODO: rebalance listener and stuff"
   [& {:keys [key-deserializer value-deserializer props] :as args}]
-  {:pre (s/validate ConsumerArgs args)}
+  {:pre (s/validate ConsumerArgsSchema args)}
   (-> (u/make-props props)
       (KafkaConsumer. key-deserializer value-deserializer)))
