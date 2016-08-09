@@ -8,6 +8,7 @@
          '[adzerk.bootlaces :refer :all])
 
 (def +version+ "0.1.0-SNAPSHOT")
+(bootlaces! +version+ :dont-modify-paths? true)
 
 (task-options!
  pom {:project 'io.thdr/kfk
