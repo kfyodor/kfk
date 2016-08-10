@@ -1,4 +1,4 @@
-(set-env! :source-paths #{"src"}
+(set-env! :resource-paths #{"src"}
           :dependencies '[[org.apache.kafka/kafka-clients "0.10.0.0" :scope "provided"]
                           [prismatic/schema "1.1.2" :scope "provided"]
                           [adzerk/bootlaces "0.1.13" :scope "test"]
