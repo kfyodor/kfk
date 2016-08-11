@@ -24,7 +24,11 @@
             ^long timestamp]
      :as record}]
    {:pre [(and (not (nil? value)) (not (nil? topic)))]}
-   (ProducerRecord. topic (int partition) timestamp key value)))
+   (ProducerRecord. topic
+                    (and partition (int partition))
+                    timestamp
+                    key
+                    value)))
 
 (defn- make-send-callback [f]
   (reify Callback

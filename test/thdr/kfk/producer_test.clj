@@ -26,15 +26,28 @@
       (.close producer))))
 
 (deftest make-producer-record-test
-  (let [ts (System/currentTimeMillis)
-        record (#'p/make-producer-record (merge (test-record "value")
-                                                {:timestamp ts}))]
-    (is (instance? ProducerRecord record))
-    (is (= "value" (.value record)))
-    (is (= "key" (.key record)))
-    (is (= 0 (.partition record)))
-    (is (= "test" (.topic record)))
-    (is (= ts (.timestamp record)))))
+  (testing "with partition"
+    (let [ts (System/currentTimeMillis)
+          record (#'p/make-producer-record (merge (test-record "value")
+                                                  {:timestamp ts}))]
+      (is (instance? ProducerRecord record))
+      (is (= "value" (.value record)))
+      (is (= "key" (.key record)))
+      (is (= 0 (.partition record)))
+      (is (= "test" (.topic record)))
+      (is (= ts (.timestamp record)))))
+
+  (testing "parition is not provided"
+    (let [ts (System/currentTimeMillis)
+          record (#'p/make-producer-record (-> (test-record "value")
+                                               (merge {:timestamp ts})
+                                               (dissoc :partition)))]
+      (is (instance? ProducerRecord record))
+      (is (= "value" (.value record)))
+      (is (= "key" (.key record)))
+      (is (nil? (.partition record)))
+      (is (= "test" (.topic record)))
+      (is (= ts (.timestamp record))))))
 
 (deftest send-and-callbacks-test
   (let [producer (MockProducer. false (StringSerializer.) (StringSerializer.))
