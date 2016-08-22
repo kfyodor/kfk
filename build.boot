@@ -1,6 +1,7 @@
 (set-env! :resource-paths #{"src"}
           :dependencies '[[org.apache.kafka/kafka-clients "0.10.0.0"]
                           [prismatic/schema "1.1.2"]
+                          [camel-snake-kebab "0.4.0"]
                           [adzerk/bootlaces "0.1.13" :scope "test"]
                           [adzerk/boot-test "1.1.1" :scope "test"]])
 
