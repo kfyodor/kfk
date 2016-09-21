@@ -9,22 +9,23 @@
 
    Example:
 
-   (defkafkamessage user-created
+   (defkafkamessage user-event [event-type]
      :topic :user-events ;; a Kafka topic message will be sent to
      :key-fn #(-> % :id str) ;; applied to obj before serialization
-     :serialize-fn #(merge % {:type :created :id (uuid-to-bytes (:id %))}))
+     :serialize-fn #(merge % {:type event-type :id (uuid-to-bytes (:id %))}))
 
    (make-user-created-message {:id (java.util.UUID/randomUUID)}
                               {:partition 0}) ;; optional Kafka message keys"
-  [event & {:keys [topic key-fn serialize-fn deserialize-fn]
-            :or {serialize-fn identity
-                 deserialize-fn identity}}]
-  {:pre [(not (nil? topic))]}
+  [event args & {:keys [topic key-fn serialize-fn deserialize-fn]
+                 :or {serialize-fn identity
+                      deserialize-fn identity}}]
+  {:pre [(not (nil? topic))
+         (vector? args)]}
   (let [fn-name (symbol (str "make-" event "-message"))]
     `(defn ~fn-name
-       ([obj#]
-        (~fn-name obj# {}))
-       ([obj# opts#]
+       ([~@args obj#]
+        (~fn-name ~@args obj# {}))
+       ([~@args obj# opts#]
         (let [{partition# :partition
                key# :key
                timestamp# :timestamp} opts#]
