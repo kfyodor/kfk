@@ -5,7 +5,8 @@
 (defkafkamessage test-event []
   :topic :test-event
   :key-fn :id
-  :serialize-fn :id)
+  :serialize-fn :id
+  :some-key :some-value)
 
 (defkafkamessage test-event-with-binding [a b]
   :topic :test-event
@@ -24,6 +25,11 @@
 
     (is (= "b" (:key (make-test-event-message {:id "id"} {:key "b"}))))
     (is (= 1 (:partition (make-test-event-message {:id "id"} {:partition 1})))))
+
+  (testing "make-...-message*"
+    (let [{:keys [some-key message]} (make-test-event-message* {:id 1})]
+      (is (= :some-value some-key))
+      (is (= message (make-test-event-message {:id 1})))))
 
   (testing "message with binding"
     (is (= (make-test-event-with-binding-message "a" "b" {:id "id"})
