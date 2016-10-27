@@ -47,11 +47,11 @@
        (defn ~fn-name*
          ([~@args obj#]
           (~fn-name* ~@args obj# {}))
-          ([~@args obj# opts#]
+          ([~@args obj# args#]
            (let [{partition# :partition
                   key# :key
-                  timestamp# :timestamp} opts#
-                 opts# (dissoc opts# :topic :key-fn :serialize-fn :deserialize-fn)]
+                  timestamp# :timestamp} args#
+                 opts# (dissoc ~opts :topic :key-fn :serialize-fn :deserialize-fn)]
              (merge opts#
                     {:message
                      {:topic ~(-> topic name ->snake_case)
